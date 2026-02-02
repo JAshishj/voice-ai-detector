@@ -1,0 +1,39 @@
+import torch
+import torch.nn as nn
+from transformers import Wav2Vec2Model
+
+class ArtifactCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Conv1d(768, 256, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv1d(256, 128, 5, padding=2),
+            nn.ReLU(),
+            nn.Conv1d(128, 64, 7, padding=3),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(1)
+        )
+        self.fc = nn.Linear(64, 1)
+
+    def forward(self, x):
+        x = self.layers(x).squeeze(-1)
+        return torch.sigmoid(self.fc(x))
+
+
+class VoiceDetector(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.backbone = Wav2Vec2Model.from_pretrained(
+            "facebook/wav2vec2-base"
+        )
+        for p in self.backbone.parameters():
+            p.requires_grad = False
+
+        self.cnn = ArtifactCNN()
+
+    def forward(self, x):
+        with torch.no_grad():
+            feats = self.backbone(x).last_hidden_state
+        feats = feats.transpose(1, 2)
+        return self.cnn(feats)
