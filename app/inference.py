@@ -15,7 +15,7 @@ model = VoiceDetector().to(DEVICE)
 
 print("DEBUG: Loading model weights...")
 model.load_state_dict(
-    torch.load("model/detector.pt", map_location=DEVICE)
+    torch.load("model/detector.pt", map_location=DEVICE, weights_only=False)
 )
 model.eval()
 print("DEBUG: Model weights loaded.")
