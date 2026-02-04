@@ -6,7 +6,6 @@ ENV PORT=7860
 
 COPY requirements.txt .
 
-# Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 
 # Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 RUN pip install --no-cache-dir typing-extensions
