@@ -2,35 +2,46 @@ import torch
 from transformers import Wav2Vec2Processor
 from app.model import VoiceDetector
 
-DEVICE = "cpu"
-
-print("DEBUG: Initializing Wav2Vec2Processor...")
-processor = Wav2Vec2Processor.from_pretrained(
-    "facebook/wav2vec2-base"
-)
-print("DEBUG: Processor initialized.")
-
-print("DEBUG: Initializing VoiceDetector model structure...")
-model = VoiceDetector().to(DEVICE)
-
 import os
-print(f"DEBUG: Model file size: {os.path.getsize('model/detector.pt')} bytes")
+import gc
 
-print("DEBUG: Loading model weights...")
-model.load_state_dict(
-    torch.load("model/detector.pt", map_location=DEVICE, weights_only=False)
-)
-model.eval()
-print("DEBUG: Model weights loaded.")
+DEVICE = "cpu"
+_processor = None
+_model = None
 
-# Apply dynamic quantization to reduce memory usage (critical for Railway free tier)
-print("DEBUG: Applying dynamic quantization...")
-model = torch.quantization.quantize_dynamic(
-    model, {torch.nn.Linear}, dtype=torch.qint8
-)
-print("DEBUG: Model quantized successfully.")
+def get_model():
+    global _processor, _model
+    
+    if _model is not None:
+        return _processor, _model
+
+    print("DEBUG: Loading Processor...")
+    _processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+    
+    print("DEBUG: Initializing Model structure...")
+    # Using low_cpu_mem_usage=True to reduce peak RAM during load
+    _model = VoiceDetector()
+    
+    print("DEBUG: Loading weights (weights_only=False)...")
+    state_dict = torch.load("model/detector.pt", map_location=DEVICE, weights_only=False)
+    _model.load_state_dict(state_dict)
+    del state_dict # Free RAM immediately
+    
+    _model.to(DEVICE)
+    _model.eval()
+    
+    print("DEBUG: Applying dynamic quantization...")
+    _model = torch.quantization.quantize_dynamic(
+        _model, {torch.nn.Linear}, dtype=torch.qint8
+    )
+    
+    gc.collect() # Force garbage collection
+    print("DEBUG: Model ready.")
+    return _processor, _model
 
 def predict(audio):
+    processor, model = get_model()
+    
     encoding = processor(
         audio,
         sampling_rate=16000,
@@ -45,3 +56,9 @@ def predict(audio):
         prob = model(input_values, attention_mask).item()
 
     return prob
+
+# Pre-load to catch errors early, but inside safe wrapper
+try:
+    get_model()
+except Exception as e:
+    print(f"DEBUG: Startup pre-load failed (might be OOM): {e}")
