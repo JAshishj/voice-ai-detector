@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir "torch>=2.6.0" "torchaudio>=2.6.0" --index-url ht
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download model from GitHub Release (as root to use apt-get)
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update && apt-get install -y curl ffmpeg && \
     mkdir -p model && \
     curl -L https://github.com/JAshishj/voice-ai-detector/releases/download/v1.0.0/detector.pt -o model/detector.pt && \
     apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
