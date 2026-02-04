@@ -22,8 +22,9 @@ def get_model():
     # Using low_cpu_mem_usage=True to reduce peak RAM during load
     _model = VoiceDetector()
     
-    print("DEBUG: Loading weights (weights_only=False)...")
-    state_dict = torch.load("model/detector.pt", map_location=DEVICE, weights_only=False)
+    print("DEBUG: Loading weights (weights_only=False, mmap=True)...")
+    # mmap=True maps weights to disk/virtual memory instead of loading all into RAM at once
+    state_dict = torch.load("model/detector.pt", map_location=DEVICE, weights_only=False, mmap=True)
     _model.load_state_dict(state_dict)
     del state_dict # Free RAM immediately
     
@@ -57,8 +58,10 @@ def predict(audio):
 
     return prob
 
-# Pre-load to catch errors early, but inside safe wrapper
-try:
-    get_model()
-except Exception as e:
-    print(f"DEBUG: Startup pre-load failed (might be OOM): {e}")
+# DISABLED startup pre-load to allow container to start. 
+# Loading will happen on the first request.
+# try:
+#     get_model()
+# except Exception as e:
+#     print(f"DEBUG: Startup pre-load failed: {e}")
+

@@ -25,7 +25,8 @@ class VoiceDetector(nn.Module):
     def __init__(self):
         super().__init__()
         self.backbone = Wav2Vec2Model.from_pretrained(
-            "facebook/wav2vec2-base"
+            "facebook/wav2vec2-base",
+            low_cpu_mem_usage=True
         )
 
         for p in self.backbone.parameters():
