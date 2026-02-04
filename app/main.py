@@ -19,7 +19,7 @@ def health_check():
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=400,
-        content={"status": "error", "message": str(exc)}
+        content={"status": "error", "message": f"{type(exc).__name__}: {str(exc)}"}
     )
 
 @app.post("/api/voice-detection", response_model=DetectResponse)

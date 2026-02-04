@@ -42,10 +42,13 @@ def predict(audio):
     )
     
     input_values = encoding.input_values.to(DEVICE)
-    attention_mask = encoding.attention_mask.to(DEVICE)
+    
+    if hasattr(encoding, "attention_mask") and encoding.attention_mask is not None:
+        attention_mask = encoding.attention_mask.to(DEVICE)
+    else:
+        attention_mask = torch.ones_like(input_values)
 
     with torch.no_grad():
         prob = model(input_values, attention_mask).item()
 
     return prob
-
