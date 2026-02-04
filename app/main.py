@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from app.schemas import DetectRequest, DetectResponse
 from app.auth import verify_api_key
 from app.audio import decode_audio
@@ -15,11 +16,25 @@ def health_check():
         "version": "1.0.0"
     }
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "error", "message": exc.detail}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"status": "error", "message": f"Malformed request: {str(exc)}"}
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
-        status_code=400,
-        content={"status": "error", "message": f"{type(exc).__name__}: {str(exc)}"}
+        status_code=500,
+        content={"status": "error", "message": f"Internal server error: {type(exc).__name__}"}
     )
 
 @app.post("/api/voice-detection", response_model=DetectResponse)
@@ -41,7 +56,6 @@ def detect_voice(
     label = "AI_GENERATED" if is_fake else "HUMAN"
     
     # Calculate confidence in the PREDICTED label
-    # If prob is 0.05 and label is HUMAN, result confidence is 0.95
     display_confidence = confidence if is_fake else (1.0 - confidence)
     
     # Simple explanation logic based on confidence
