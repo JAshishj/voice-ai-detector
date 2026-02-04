@@ -2,7 +2,10 @@ FROM python:3.9-slim
 WORKDIR /app
 COPY requirements.txt .
 
-# Install specific CPU-only torch versions BEFORE requirements to save space (approx 4-5GB)
+# Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
+RUN pip install --no-cache-dir typing-extensions
+
+# Install specific CPU-only torch versions
 # explicitly requesting >=2.6.0 due to CVE-2025-32434 requirements from transformers
 RUN pip install --no-cache-dir "torch>=2.6.0" "torchaudio>=2.6.0" --index-url https://download.pytorch.org/whl/cpu
 
