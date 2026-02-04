@@ -8,9 +8,14 @@ import gc
 DEVICE = "cpu"
 _processor = None
 _model = None
+import psutil
+
+def log_mem(step):
+    mem = psutil.virtual_memory()
+    print(f"DEBUG MEM [{step}]: Available: {mem.available / (1024**2):.2f}MB, Used: {mem.percent}%")
 
 print(f"DEBUG: Application starting on PORT: {os.getenv('PORT', '8000')}")
-print(f"DEBUG: Model file exists: {os.path.exists('model/detector.pt')}")
+log_mem("Startup")
 
 def get_model():
     global _processor, _model
@@ -18,28 +23,32 @@ def get_model():
     if _model is not None:
         return _processor, _model
 
+    log_mem("Before Processor")
     print("DEBUG: Loading Processor...")
     _processor = Wav2Vec2Processor.from_pretrained("./model/base_model")
     
+    log_mem("Before Model Init")
     print("DEBUG: Initializing Model structure...")
-    # Using low_cpu_mem_usage=True to reduce peak RAM during load
     _model = VoiceDetector()
     
+    log_mem("Before Weights Load")
     print("DEBUG: Loading weights (weights_only=False, mmap=True)...")
-    # mmap=True maps weights to disk/virtual memory instead of loading all into RAM at once
     state_dict = torch.load("model/detector.pt", map_location=DEVICE, weights_only=False, mmap=True)
     _model.load_state_dict(state_dict)
-    del state_dict # Free RAM immediately
+    del state_dict 
     
     _model.to(DEVICE)
     _model.eval()
+    log_mem("After Weights Loaded")
     
-    print("DEBUG: Applying dynamic quantization...")
-    _model = torch.quantization.quantize_dynamic(
-        _model, {torch.nn.Linear}, dtype=torch.qint8
-    )
+    # Temporarily disabling quantization to see if we can at least reach "ready" state
+    # print("DEBUG: Applying dynamic quantization...")
+    # _model = torch.quantization.quantize_dynamic(
+    #     _model, {torch.nn.Linear}, dtype=torch.qint8
+    # )
     
-    gc.collect() # Force garbage collection
+    gc.collect() 
+    log_mem("After GC")
     print("DEBUG: Model ready.")
     return _processor, _model
 
