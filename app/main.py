@@ -40,6 +40,10 @@ def detect_voice(
     is_fake = confidence >= 0.5
     label = "AI_GENERATED" if is_fake else "HUMAN"
     
+    # Calculate confidence in the PREDICTED label
+    # If prob is 0.05 and label is HUMAN, result confidence is 0.95
+    display_confidence = confidence if is_fake else (1.0 - confidence)
+    
     # Simple explanation logic based on confidence
     if is_fake:
         explanation = "Detected synthetic spectral patterns consistent with AI voice generation."
@@ -50,6 +54,6 @@ def detect_voice(
         status="success",
         language=request.language,
         classification=label,
-        confidenceScore=round(confidence, 2),
+        confidenceScore=round(display_confidence, 2),
         explanation=explanation
     )
