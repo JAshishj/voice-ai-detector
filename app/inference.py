@@ -13,6 +13,9 @@ print("DEBUG: Processor initialized.")
 print("DEBUG: Initializing VoiceDetector model structure...")
 model = VoiceDetector().to(DEVICE)
 
+import os
+print(f"DEBUG: Model file size: {os.path.getsize('model/detector.pt')} bytes")
+
 print("DEBUG: Loading model weights...")
 model.load_state_dict(
     torch.load("model/detector.pt", map_location=DEVICE, weights_only=False)
