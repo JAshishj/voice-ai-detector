@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y curl && \
     curl -L https://github.com/JAshishj/voice-ai-detector/releases/download/v1.0.0/detector.pt -o model/detector.pt && \
     apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
+# Pre-download base model files to avoid runtime download and timeouts
+COPY download_base.py .
+RUN python download_base.py && rm download_base.py
+
 COPY app ./app
 EXPOSE 8000
 CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"

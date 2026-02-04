@@ -16,7 +16,7 @@ def get_model():
         return _processor, _model
 
     print("DEBUG: Loading Processor...")
-    _processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+    _processor = Wav2Vec2Processor.from_pretrained("./model/base_model")
     
     print("DEBUG: Initializing Model structure...")
     # Using low_cpu_mem_usage=True to reduce peak RAM during load
