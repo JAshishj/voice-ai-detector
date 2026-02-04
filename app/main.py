@@ -27,7 +27,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=400,
-        content={"status": "error", "message": f"Malformed request: {str(exc)}"}
+        content={"status": "error", "message": "Invalid API key or malformed request"}
     )
 
 @app.exception_handler(Exception)
@@ -37,6 +37,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"status": "error", "message": f"Internal server error: {type(exc).__name__}"}
     )
 
+# Primary endpoint as per guidelines
 @app.post("/api/voice-detection", response_model=DetectResponse)
 def detect_voice(
     request: DetectRequest,
@@ -45,20 +46,17 @@ def detect_voice(
     try:
         audio = decode_audio(request.audioBase64)
     except Exception as e:
-        # Wrap decoding/processing errors as 400 bad request
         return JSONResponse(
             status_code=400,
-            content={"status": "error", "message": f"Invalid audio input: {str(e)}"}
+            content={"status": "error", "message": "Invalid API key or malformed request"}
         )
 
     confidence = predict(audio)
     is_fake = confidence >= 0.5
     label = "AI_GENERATED" if is_fake else "HUMAN"
     
-    # Calculate confidence in the PREDICTED label
     display_confidence = confidence if is_fake else (1.0 - confidence)
     
-    # Simple explanation logic based on confidence
     if is_fake:
         explanation = "Detected synthetic spectral patterns consistent with AI voice generation."
     else:
@@ -71,3 +69,8 @@ def detect_voice(
         confidenceScore=round(display_confidence, 2),
         explanation=explanation
     )
+
+# Alias for root URL to support testers that don't append the path
+@app.post("/", response_model=DetectResponse)
+def detect_voice_root_alias(request: DetectRequest, auth=Depends(verify_api_key)):
+    return detect_voice(request, auth)
