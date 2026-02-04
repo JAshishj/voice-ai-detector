@@ -14,15 +14,23 @@ model.load_state_dict(
 )
 model.eval()
 
+# Apply dynamic quantization to reduce memory usage (critical for Railway free tier)
+model = torch.quantization.quantize_dynamic(
+    model, {torch.nn.Linear}, dtype=torch.qint8
+)
+
 def predict(audio):
-    inputs = processor(
+    encoding = processor(
         audio,
         sampling_rate=16000,
         return_tensors="pt",
         padding=True
-    ).input_values.to(DEVICE)
+    )
+    
+    input_values = encoding.input_values.to(DEVICE)
+    attention_mask = encoding.attention_mask.to(DEVICE)
 
     with torch.no_grad():
-        prob = model(inputs).item()
+        prob = model(input_values, attention_mask).item()
 
     return prob
