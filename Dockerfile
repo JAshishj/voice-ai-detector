@@ -1,7 +1,6 @@
 FROM python:3.9-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
 COPY requirements.txt .
 
 # Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index

@@ -9,6 +9,9 @@ DEVICE = "cpu"
 _processor = None
 _model = None
 
+print(f"DEBUG: Application starting on PORT: {os.getenv('PORT', '8000')}")
+print(f"DEBUG: Model file exists: {os.path.exists('model/detector.pt')}")
+
 def get_model():
     global _processor, _model
     
