@@ -7,4 +7,3 @@ librosa
 numpy
 soundfile
 python-multipart
-psutil

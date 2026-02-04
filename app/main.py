@@ -9,7 +9,11 @@ app = FastAPI(title="AI Generated Voice Detection API")
 
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "model": "loaded" if 'app.inference._model' in globals() and app.inference._model is not None else "pending"}
+    return {
+        "status": "healthy", 
+        "platform": "huggingface_spaces",
+        "version": "1.0.0"
+    }
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

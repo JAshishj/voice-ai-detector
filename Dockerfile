@@ -1,7 +1,17 @@
 FROM python:3.9-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
-COPY requirements.txt .
+# Hugging Face Spaces expects port 7860
+ENV PORT=7860
+
+# Set up a non-root user for security (required by HF sometimes)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user
+ENV PATH=/home/user/.local/bin:$PATH
+
+WORKDIR $HOME/app
+COPY --chown=user requirements.txt .
 
 # Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 RUN pip install --no-cache-dir typing-extensions
@@ -19,9 +29,9 @@ RUN apt-get update && apt-get install -y curl && \
     apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Pre-download base model files to avoid runtime download and timeouts
-COPY download_base.py .
+COPY --chown=user download_base.py .
 RUN python download_base.py && rm download_base.py
 
-COPY app ./app
-EXPOSE 8000
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+COPY --chown=user app ./app
+EXPOSE 7860
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
