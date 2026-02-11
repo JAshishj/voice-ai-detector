@@ -16,11 +16,15 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # Load model
 print("Loading model...")
 model = VoiceDetector().to(DEVICE)
-model.load_state_dict(torch.load("model/detector.pt", map_location=DEVICE))
+model.load_state_dict(torch.load("model/detector.pt", map_location=DEVICE, weights_only=True))
 model.eval()
 
-# Load processor
-processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+# Load processor from local path if available
+BASE_MODEL_PATH = "./model/base_model"
+if os.path.exists(BASE_MODEL_PATH):
+    processor = Wav2Vec2Processor.from_pretrained(BASE_MODEL_PATH)
+else:
+    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
 
 def predict(audio_path):
     """Predict if audio is AI or Human"""
@@ -51,8 +55,8 @@ def predict(audio_path):
     input_values = inputs.input_values.to(DEVICE)
     attention_mask = torch.ones_like(input_values).to(DEVICE)
     
-    # Predict
-    with torch.no_grad():
+    # Predict using inference mode
+    with torch.inference_mode():
         prediction = model(input_values, attention_mask)
     
     score = prediction.item()

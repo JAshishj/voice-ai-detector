@@ -48,7 +48,8 @@ def predict(audio):
     else:
         attention_mask = torch.ones_like(input_values)
 
-    with torch.no_grad():
+    with torch.inference_mode():
+        # model expects (batch, seq_len)
         prob = model(input_values, attention_mask).item()
 
     return prob

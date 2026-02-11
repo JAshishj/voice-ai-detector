@@ -8,6 +8,8 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from transformers import Wav2Vec2Processor
 from tqdm import tqdm
+from audiomentations import Compose, AddGaussianNoise, TimeStretch, PitchShift, Shift
+import torch.cuda.amp as amp
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 
@@ -19,9 +21,9 @@ from app.model import VoiceDetector
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 8
-EPOCHS = 20  # Increased from 10
+EPOCHS = 10  # Increased for fine-tuning
 MAX_LEN = 16000 * 6  # 6 seconds
-LEARNING_RATE = 3e-4
+LEARNING_RATE = 1e-4 # Lowered for stable fine-tuning
 TRAIN_SPLIT = 0.85  # 85% train, 15% validation
 
 processor = Wav2Vec2Processor.from_pretrained(
@@ -29,8 +31,16 @@ processor = Wav2Vec2Processor.from_pretrained(
 )
 
 class VoiceDataset(Dataset):
-    def __init__(self, samples):
+    def __init__(self, samples, augment=False):
         self.samples = samples
+        self.augment = augment
+        if augment:
+            self.augmenter = Compose([
+                AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.5),
+                TimeStretch(min_rate=0.8, max_rate=1.25, p=0.5),
+                PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
+                Shift(min_shift=-0.5, max_shift=0.5, p=0.5),
+            ])
 
     def __len__(self):
         return len(self.samples)
@@ -57,6 +67,12 @@ class VoiceDataset(Dataset):
         peak = audio.abs().max()
         if peak > 0:
             audio = audio / peak
+
+        # Apply augmentation if in training mode
+        if self.augment:
+            audio_np = audio.numpy()
+            augmented = self.augmenter(samples=audio_np, sample_rate=16000)
+            audio = torch.from_numpy(augmented).float()
 
         return audio, label
 
@@ -159,8 +175,8 @@ train_samples, val_samples = load_samples("dataset")
 print(f"Train samples: {len(train_samples)}")
 print(f"Val samples:   {len(val_samples)}")
 
-train_dataset = VoiceDataset(train_samples)
-val_dataset = VoiceDataset(val_samples)
+train_dataset = VoiceDataset(train_samples, augment=True)
+val_dataset = VoiceDataset(val_samples, augment=False)
 
 train_loader = DataLoader(
     train_dataset,
@@ -184,13 +200,14 @@ model = VoiceDetector().to(DEVICE)
 # Class weights to handle imbalance (boost "human" class)
 # pos_weight > 1 means penalize missing AI more
 # pos_weight < 1 means penalize missing Human more
-pos_weight = torch.tensor([0.8]).to(DEVICE)  # slightly boost human detection
+# Treated equally (pos_weight=1.0) since we have a balanced dataset (933 each)
+pos_weight = torch.tensor([1.0]).to(DEVICE)
 criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
 optimizer = torch.optim.Adam(
-    model.cnn.parameters(),
+    filter(lambda p: p.requires_grad, model.parameters()),
     lr=LEARNING_RATE,
-    weight_decay=1e-4  # L2 regularization
+    weight_decay=1e-4
 )
 
 # Learning rate scheduler
@@ -200,6 +217,9 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     patience=3,
     factor=0.5
 )
+
+# AMP GradScaler
+scaler = amp.GradScaler(enabled=(DEVICE == "cuda"))
 
 print("Starting training...")
 model.train()
@@ -218,12 +238,17 @@ for epoch in range(EPOCHS):
         mask = mask.to(DEVICE)
         y = y.to(DEVICE)
 
-        preds = model(x, mask).squeeze(-1)
-        loss = criterion(preds, y)
-
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+
+        # AMP Forward Pass
+        with amp.autocast(enabled=(DEVICE == "cuda")):
+            preds = model(x, mask).squeeze(-1)
+            loss = criterion(preds, y)
+
+        # AMP Backward Pass and Step
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         total_loss += loss.item()
         num_batches += 1

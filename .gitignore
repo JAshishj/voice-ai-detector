@@ -1,4 +1,3 @@
-
 __pycache__/
 *.pyc
 
@@ -9,3 +8,8 @@ dataset/
 .env
 
 .DS_Store
+
+# Models
+model/base_model/
+model/*.onnx
+model/detector_best.pt

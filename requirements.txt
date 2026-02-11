@@ -7,3 +7,6 @@ librosa
 numpy
 soundfile
 python-multipart
+onnx
+onnxruntime
+audiomentations
