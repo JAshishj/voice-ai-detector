@@ -18,7 +18,7 @@ model = VoiceDetector()
 
 # 3. Load Weights
 # mmap=True helps but with 16GB it's optional; keeping for efficiency
-state_dict = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False, mmap=True)
+state_dict = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False, mmap=False)
 model.load_state_dict(state_dict)
 del state_dict # Free temp RAM
 
