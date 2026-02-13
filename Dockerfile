@@ -6,6 +6,7 @@ ENV PORT=7860
 
 COPY requirements.txt .
 
+# Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 
 # Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 RUN pip install --no-cache-dir typing-extensions
@@ -15,23 +16,28 @@ RUN pip install --no-cache-dir "torch>=2.6.0" "torchaudio>=2.6.0" --index-url ht
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download model from GitHub Release (as root to use apt-get)
-RUN apt-get update && apt-get install -y curl ffmpeg && \
-    mkdir -p model && \
-    curl -L https://github.com/JAshishj/voice-ai-detector/releases/download/v1.0.0/detector.pt -o model/detector.pt && \
-    apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# Install ffmpeg for audio processing
+RUN apt-get update && apt-get install -y ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set up non-root user (Hugging Face requirement)
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user
+ENV PATH=/home/user/.local/bin:$PATH
+
+# Copy local model folder (managed by Git LFS)
+COPY --chown=user model ./model
 
 # Pre-download base model files
 COPY download_base.py .
 RUN python download_base.py && rm download_base.py
 
-# Set up non-root user and fix permissions
-RUN useradd -m -u 1000 user && \
-    chown -R user:user /app
-USER user
-ENV HOME=/home/user
-ENV PATH=/home/user/.local/bin:$PATH
-
+# Final code copy
 COPY --chown=user app ./app
+
+# Fix permissions and switch user
+RUN chown -R user:user /app
+USER user
+
 EXPOSE 7860
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
