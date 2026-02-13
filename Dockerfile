@@ -3,6 +3,7 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 # Hugging Face Spaces expects port 7860
 ENV PORT=7860
+ENV NUMBA_CACHE_DIR=/tmp
 
 COPY requirements.txt .
 
