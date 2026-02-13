@@ -50,6 +50,7 @@ def predict(audio):
 
     with torch.inference_mode():
         # model expects (batch, seq_len)
-        prob = model(input_values, attention_mask).item()
+        logits = model(input_values, attention_mask)
+        prob = torch.sigmoid(logits).item()
 
     return prob

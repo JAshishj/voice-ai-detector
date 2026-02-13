@@ -21,7 +21,7 @@ from app.model import VoiceDetector
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 8
-EPOCHS = 10  # Increased for fine-tuning
+EPOCHS = 20  # Increased for fine-tuning
 MAX_LEN = 16000 * 6  # 6 seconds
 LEARNING_RATE = 1e-4 # Lowered for stable fine-tuning
 TRAIN_SPLIT = 0.85  # 85% train, 15% validation
@@ -141,7 +141,7 @@ def evaluate(model, loader):
     total_loss = 0.0
     num_batches = 0
 
-    criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     with torch.no_grad():
         for x, mask, y in loader:
@@ -149,13 +149,14 @@ def evaluate(model, loader):
             mask = mask.to(DEVICE)
             y = y.to(DEVICE)
 
-            preds = model(x, mask).squeeze(-1)
-            loss = criterion(preds, y)
+            logits = model(x, mask).squeeze(-1)
+            loss = criterion(logits, y)
 
             total_loss += loss.item()
             num_batches += 1
 
             # Convert predictions to labels
+            preds = torch.sigmoid(logits)
             predicted = (preds > 0.5).float()
             correct += (predicted == y).sum().item()
             total += y.size(0)

@@ -24,7 +24,7 @@ class ArtifactCNN(nn.Module):
     def forward(self, x):
         x = self.net(x)
         x = torch.flatten(x, 1)
-        return torch.sigmoid(self.fc(x))
+        return self.fc(x)
 
 
 class VoiceDetector(nn.Module):

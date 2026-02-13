@@ -15,6 +15,5 @@ def decode_audio(base64_audio: str) -> np.ndarray:
     audio, _ = librosa.load(io.BytesIO(audio_bytes), sr=TARGET_SR, mono=True)
 
     audio = librosa.util.normalize(audio)
-    audio, _ = librosa.effects.trim(audio, top_db=25)
 
     return audio

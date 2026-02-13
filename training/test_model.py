@@ -57,9 +57,8 @@ def predict(audio_path):
     
     # Predict using inference mode
     with torch.inference_mode():
-        prediction = model(input_values, attention_mask)
-    
-    score = prediction.item()
+        logits = model(input_values, attention_mask)
+        score = torch.sigmoid(logits).item()
     label = "AI" if score > 0.5 else "Human"
     confidence = score if score > 0.5 else 1 - score
     
