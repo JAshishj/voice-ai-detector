@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir "torch>=2.6.0" "torchaudio>=2.6.0" --index-url ht
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install ffmpeg for audio processing
-RUN apt-get update && apt-get install -y ffmpeg && \
+# Install ffmpeg and libsndfile1 for audio processing
+RUN apt-get update && apt-get install -y ffmpeg libsndfile1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Set up non-root user (Hugging Face requirement)

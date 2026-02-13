@@ -27,7 +27,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=400,
-        content={"status": "error", "message": "Invalid API key or malformed request"}
+        content={"status": "error", "message": f"Malformed request or validation error: {exc.errors()}"}
     )
 
 @app.exception_handler(Exception)
@@ -48,7 +48,7 @@ def detect_voice(
     except Exception as e:
         return JSONResponse(
             status_code=400,
-            content={"status": "error", "message": "Invalid API key or malformed request"}
+            content={"status": "error", "message": f"Audio processing failed: {str(e)}"}
         )
 
     confidence = predict(audio)
