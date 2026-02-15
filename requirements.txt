@@ -10,3 +10,4 @@ python-multipart
 onnx
 onnxruntime
 audiomentations
+datasets
