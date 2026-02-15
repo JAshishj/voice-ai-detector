@@ -14,10 +14,13 @@ LANG_MAP = {
 def download_regional_data(languages=["Hindi", "Tamil", "Telugu", "Malayalam"], limit=1000, save_root="dataset"):
     print(f"🚀 Starting MASTER balanced download for: {languages}")
     
+    if not languages:
+        raise ValueError("languages must contain at least one language")
+    
     os.makedirs(os.path.join(save_root, "human"), exist_ok=True)
     os.makedirs(os.path.join(save_root, "ai"), exist_ok=True)
 
-    counts = {"human": 0, "ai": 0}
+    counts = {"human": 0, "ai": 0, "ai_skipped": 0, "human_skipped": 0}
     target_per_lang = limit // len(languages)
     target_per_class = target_per_lang // 2
 
@@ -40,8 +43,10 @@ def download_regional_data(languages=["Hindi", "Tamil", "Telugu", "Malayalam"], 
                 if not os.path.exists(save_path):
                     with open(save_path, "wb") as f:
                         f.write(item["audio"]["bytes"])
-                ai_count += 1
-                counts["ai"] += 1
+                    ai_count += 1
+                    counts["ai"] += 1
+                else:
+                    counts["ai_skipped"] += 1
             print(f"   ✅ Collected {ai_count} AI samples.")
         except Exception as e:
             print(f"   ⚠️ Error fetching AI for {lang}: {e}")
@@ -64,8 +69,10 @@ def download_regional_data(languages=["Hindi", "Tamil", "Telugu", "Malayalam"], 
                     if not os.path.exists(save_path):
                         with open(save_path, "wb") as f:
                             f.write(item["audio"]["bytes"])
-                    human_count += 1
-                    counts["human"] += 1
+                        human_count += 1
+                        counts["human"] += 1
+                    else:
+                        counts["human_skipped"] += 1
                 print(f"   ✅ Collected {human_count} Human samples.")
             except Exception as e:
                 print(f"   ⚠️ Error fetching Human for {lang}: {e}")

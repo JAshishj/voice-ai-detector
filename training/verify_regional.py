@@ -1,5 +1,7 @@
 import os
 import sys
+import logging
+import numpy as np
 import torch
 import torch.nn as nn
 import soundfile as sf
@@ -10,6 +12,10 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from app.model import VoiceDetector
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
@@ -46,7 +52,7 @@ def verify_regional(model_path="model/detector.pt"):
                 
                 try:
                     audio, sr = sf.read(audio_path)
-                    if len(audio.shape) > 1: audio = audio.mean()
+                    if len(audio.shape) > 1: audio = audio.mean(axis=1)
                     if len(audio) > MAX_LEN: audio = audio[:MAX_LEN]
                     elif len(audio) < MAX_LEN: audio = np.pad(audio, (0, MAX_LEN - len(audio)))
                     
@@ -60,7 +66,8 @@ def verify_regional(model_path="model/detector.pt"):
                     results[category]["total"] += 1
                     if pred == float(label):
                         results[category]["correct"] += 1
-                except Exception:
+                except Exception as e:
+                    logger.error(f"Error processing {cls} file '{f}' at {audio_path}", exc_info=True)
                     continue
 
     print("\n--- Final Verification Report ---")
