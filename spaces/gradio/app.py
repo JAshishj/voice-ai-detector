@@ -55,7 +55,7 @@ _torch_load_compat()
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
 
 # ── Config ──────────────────────────────────────────────────────────────
-MODEL_REPO_ID = os.getenv("MODEL_REPO_ID", "Ashish-04007/voice-ai-detector")
+MODEL_REPO_ID = os.getenv("MODEL_REPO_ID", "Ashish-04007/voice-ai-detector-model")
 HF_TOKEN = os.getenv("HF_TOKEN")  # None is fine for public repos
 BACKBONE_ID = os.getenv("BACKBONE_ID", "facebook/wav2vec2-base")
 DEVICE = "cpu"
