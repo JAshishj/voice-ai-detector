@@ -30,7 +30,7 @@ if (-not $space) {
 
 function Upload-ToHub([string]$repo, [string]$local, [string]$remote, [string]$type, [string]$msg) {
   Write-Host ">> $local -> $repo::$remote"
-  hf upload $repo $local $remote --repo-type=$type -m $msg
+  hf upload $repo $local $remote --repo-type=$type --commit-message $msg
 }
 
 $stamp = "deploy $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
