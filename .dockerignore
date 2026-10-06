@@ -10,6 +10,9 @@ dataset/
 training/
 requirements-train.txt
 
+# HF Space sources ship as their own repos, never in this image
+spaces/
+
 # Tests verify the release on GitHub/CI; they don't serve traffic
 tests/
 

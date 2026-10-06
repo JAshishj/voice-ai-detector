@@ -33,6 +33,21 @@ uvicorn app.main:app --port 7860        # backend
 cd frontend && npm install && npm run dev  # console (proxies /api → :7860)
 ```
 
+## Free hosting (Docker Spaces are paid-only)
+
+- **API → Gradio Space (free CPU):** push `spaces/gradio/` as its own Space
+  repo. First upload `model/detector.pt` + `model/detector_config.json` to a
+  model repo named by `MODEL_REPO_ID` (default
+  `Ashish-04007/voice-ai-detector`); the Space downloads them at boot.
+  `spaces/gradio/requirements.txt` pins the set (note: transformers stays
+  v4 there — gradio 5.x needs `huggingface_hub<1.0`, transformers 5.x needs
+  `>=1.3`).
+- **Console → Vercel (free):** import the repo with root directory
+  `frontend/`, set `VITE_BACKEND=gradio`,
+  `VITE_GRADIO_URL=https://<space>.hf.space`, `VITE_THRESHOLD=0.85`.
+  The client switches to `@gradio/client`; `VITE_BACKEND=fastapi` (default)
+  keeps the same-origin FastAPI mode for Docker/local.
+
 ## Model (v1.1.0 weights, served as-is)
 
 | metric (held-out, 300 clips) | value |
