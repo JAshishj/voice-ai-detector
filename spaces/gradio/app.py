@@ -54,6 +54,17 @@ _torch_load_compat()
 # The Space container installs gradio via requirements.txt.
 from transformers import Wav2Vec2Model, Wav2Vec2Processor
 
+try:
+    # ZeroGPU scheduler requires at least one @spaces.GPU entrypoint.
+    # Inference itself stays on CPU torch (see DEVICE); the decorator only
+    # routes the call through a GPU worker from the free quota.
+    from spaces import GPU as _GPU
+
+    _zero_gpu = _GPU(duration=60)
+except Exception:  # local dev without the spaces package
+    def _zero_gpu(fn):
+        return fn
+
 # ── Config ──────────────────────────────────────────────────────────────
 MODEL_REPO_ID = os.getenv("MODEL_REPO_ID", "Ashish-04007/voice-ai-detector-model")
 HF_TOKEN = os.getenv("HF_TOKEN")  # None is fine for public repos
@@ -169,6 +180,7 @@ def _load_clip(path: str) -> np.ndarray:
     return (audio / peak).astype(np.float32)
 
 
+@_zero_gpu
 def predict(audio_path: str | None, language: str):
     """Gradio endpoint. Returns (label, confidence, explanation)."""
     if not audio_path:
@@ -216,7 +228,7 @@ def build_demo():
             f"Held-out accuracy 96.3%, EER 0.020, operating threshold {THRESHOLD}."
         ),
         api_name="predict",
-        allow_flagging="never",
+        flagging_mode="never",
     )
 
 
