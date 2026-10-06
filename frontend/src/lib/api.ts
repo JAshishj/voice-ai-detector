@@ -52,11 +52,14 @@ export interface AnalyzeInput {
   audioFormat: "mp3" | "wav" | "flac";
 }
 
-function base64ToWavBlob(b64: string): Blob {
+function base64ToWavFile(b64: string): File {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: "audio/wav" });
+  // Must be a File (not a Blob): the Gradio client only uploads named files
+  // as file inputs — a bare Blob arrives server-side as a bare string and
+  // fails FileData validation before predict ever runs.
+  return new File([bytes], "clip.wav", { type: "audio/wav" });
 }
 
 let gradioClient: Client | null = null;
@@ -73,10 +76,10 @@ async function detectViaGradio(
   try {
     gradioClient ??= await Client.connect(GRADIO_URL);
     const client: Client = gradioClient;
-    job = await client.predict("/predict", [
-      base64ToWavBlob(input.audioBase64),
-      input.language,
-    ]);
+  job = await client.predict("/predict", [
+    base64ToWavFile(input.audioBase64),
+    input.language,
+  ]);
   } catch (e) {
     console.error("[signal-lab] gradio call failed:", e);
     throw new ApiError(
