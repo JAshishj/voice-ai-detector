@@ -1,0 +1,23 @@
+.git
+venv
+__pycache__
+.pytest_cache
+*.pyc
+.env
+
+# Never ship training data or training code in the serving image
+dataset/
+training/
+requirements-train.txt
+
+# Tests verify the release on GitHub/CI; they don't serve traffic
+tests/
+
+# Local-only / transient files
+test_api.py
+*.mp3
+temp_*.wav
+*.log
+evaluation_reports/
+model/detector_best.pt
+model/*.onnx

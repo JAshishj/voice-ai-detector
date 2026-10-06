@@ -1,13 +1,13 @@
-fastapi
-uvicorn
-torch
-torchaudio
-transformers
-librosa
-numpy
-soundfile
-python-multipart
-onnx
-onnxruntime
-audiomentations
-datasets
+# Production (serving) dependencies — lean, pinned, reproducible.
+# Torch CPU wheels are installed separately in the Dockerfile from the
+# PyTorch index; the version floor (>=2.6) matters because transformers
+# refuses torch.load on older versions (CVE-2025-32434).
+fastapi==0.129.0
+uvicorn==0.40.0
+torch>=2.6.0
+transformers==5.1.0
+librosa==0.11.0
+numpy==2.3.5
+soundfile==0.13.1
+python-multipart==0.0.22
+onnxruntime==1.24.1

@@ -4,6 +4,9 @@ ENV PYTHONUNBUFFERED=1
 # Hugging Face Spaces expects port 7860
 ENV PORT=7860
 ENV NUMBA_CACHE_DIR=/tmp
+ENV TORCH_THREADS=4
+ENV QUANTIZE=1
+ENV MODEL_VERSION=detector.pt
 
 COPY requirements.txt .
 
@@ -41,4 +44,6 @@ RUN chown -R user:user /app
 USER user
 
 EXPOSE 7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+HEALTHCHECK --interval=60s --timeout=10s --start-period=120s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health').read()" || exit 1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860", "--workers", "1"]

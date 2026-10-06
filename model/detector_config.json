@@ -1,0 +1,7 @@
+{
+  "sample_rate": 16000,
+  "max_len": 96000,
+  "min_len": 8000,
+  "suggested_threshold": 0.8503,
+  "best_val_acc": 98.17
+}

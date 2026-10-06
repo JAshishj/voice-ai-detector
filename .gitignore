@@ -13,3 +13,30 @@ dataset/
 model/base_model/
 model/*.onnx
 model/detector_best.pt
+
+# Local sample audio (copied from CS folder, not for commit)
+voice 5.mp3
+*.mp3
+
+# Local-only dev scripts (personal paths / secrets, not for commit)
+test_api.py
+
+# Transient local artifacts
+temp_test.wav
+temp_*.wav
+*.log
+evaluation_reports/
+
+# Python / test caches
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Experiment checkpoints (keep only the released detector.pt)
+model/*_best.pt
+model/*_final.pt
+model/*_epoch*.pt
+lightning_logs/
+wandb/

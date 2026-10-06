@@ -18,14 +18,21 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from app.model import VoiceDetector
+from training.metrics import auc_score, best_threshold, f1_score
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 16
 ACCUM_STEPS = 2  # Effective Batch Size = 16 * 2 = 32
 EPOCHS = 10  # Reduced from 20 for faster iterations
-MAX_LEN = 16000 * 6  # 6 seconds
-LEARNING_RATE = 2e-5 
+MAX_LEN = 16000 * 6  # 6 seconds (must match app.inference.WINDOW_SAMPLES)
+MIN_LEN = int(16000 * 0.5)  # skip clips shorter than 0.5 s (unreliable)
+LEARNING_RATE = 2e-5
 TRAIN_SPLIT = 0.85  # 85% train, 15% validation
+EARLY_STOP_PATIENCE = 3  # stop if val loss doesn't improve for N epochs
+# Windows uses spawn (no fork) and this is a flat script with no __main__
+# guard, so worker processes would re-execute training and crash. Keep
+# single-process loading there; Linux/macOS containers get real workers.
+NUM_WORKERS = 0 if os.name == "nt" else min(4, (os.cpu_count() or 2))
 
 processor = Wav2Vec2Processor.from_pretrained(
     "facebook/wav2vec2-base"
@@ -48,22 +55,20 @@ class VoiceDataset(Dataset):
 
     def __getitem__(self, idx):
         path, label = self.samples[idx]
-        
+
         audio, sr = sf.read(path)
-        audio = torch.from_numpy(audio).float()
-        
+        audio = torch.from_numpy(np.asarray(audio, dtype=np.float32)).float()
+
         # Ensure mono
         if len(audio.shape) > 1:
             audio = audio.mean(dim=1)
-        
-        # Trim or pad to MAX_LEN
+
+        # Trim to MAX_LEN (no zero-padding here: the collate fn pads the
+        # batch and builds a REAL attention mask, so the backbone ignores
+        # padding instead of treating it as speech).
         if len(audio) > MAX_LEN:
             audio = audio[:MAX_LEN]
-        elif len(audio) < MAX_LEN:
-            # Pad with zeros if audio is shorter
-            padding = torch.zeros(MAX_LEN - len(audio))
-            audio = torch.cat([audio, padding])
-        
+
         # Normalize
         peak = audio.abs().max()
         if peak > 0:
@@ -73,7 +78,9 @@ class VoiceDataset(Dataset):
         if self.augment:
             audio_np = audio.numpy()
             augmented = self.augmenter(samples=audio_np, sample_rate=16000)
-            audio = torch.from_numpy(augmented).float()
+            audio = torch.from_numpy(np.asarray(augmented, dtype=np.float32)).float()
+            if len(audio) > MAX_LEN:
+                audio = audio[:MAX_LEN]
 
         return audio, label
 
@@ -85,16 +92,24 @@ def collate_fn(batch):
         [a.numpy() for a in audios],
         sampling_rate=16000,
         padding=True,
-        return_tensors="pt"
+        return_attention_mask=True,  # required: transformers>=5 omits it by default
+        return_tensors="pt",
     )
 
     input_values = inputs.input_values
-    attention_mask = torch.ones_like(input_values)
+    # Real mask from the processor: 1 for speech, 0 for padding.
+    try:
+        attention_mask = inputs["attention_mask"]
+    except KeyError:  # defensive: build from pre-pad lengths
+        lengths = [len(a) for a in audios]
+        attention_mask = torch.zeros_like(input_values)
+        for i, n in enumerate(lengths):
+            attention_mask[i, : min(n, attention_mask.shape[-1])] = 1
 
     return (
         input_values,
         attention_mask,
-        torch.tensor(labels, dtype=torch.float32)
+        torch.tensor(labels, dtype=torch.float32),
     )
 
 
@@ -106,12 +121,21 @@ def load_samples(root):
     for label, cls in enumerate(["human", "ai"]):
         cls_path = os.path.join(root, cls)
         if not os.path.exists(cls_path):
-            print(f"⚠️ Warning: {cls_path} does not exist")
+            print(f"[!] Warning: {cls_path} does not exist")
             continue
 
         for f in os.listdir(cls_path):
             if f.endswith(".wav"):
                 sample = (os.path.join(cls_path, f), label)
+                # Skip unreadable / too-short clips up front so tiny files
+                # can't poison batches with all-padding inputs.
+                try:
+                    info = sf.info(os.path.join(cls_path, f))
+                    n = int(info.frames)
+                    if n < MIN_LEN:
+                        continue
+                except Exception:
+                    continue
                 if label == 0:
                     human_samples.append(sample)
                 else:
@@ -135,12 +159,17 @@ def load_samples(root):
 
 
 def evaluate(model, loader):
-    """Evaluate model on validation set"""
+    """Evaluate model on validation set.
+
+    Returns (accuracy, avg_loss, f1, auc, scores, labels) where scores are
+    P(AI) per sample. F1/AUC are computed without sklearn to keep the
+    training env lean.
+    """
     model.eval()
-    correct = 0
-    total = 0
     total_loss = 0.0
     num_batches = 0
+    all_scores: list[float] = []
+    all_labels: list[int] = []
 
     criterion = nn.BCEWithLogitsLoss()
 
@@ -156,17 +185,21 @@ def evaluate(model, loader):
             total_loss += loss.item()
             num_batches += 1
 
-            # Convert predictions to labels
-            preds = torch.sigmoid(logits)
-            predicted = (preds > 0.5).float()
-            correct += (predicted == y).sum().item()
-            total += y.size(0)
+            probs = torch.sigmoid(logits).detach().cpu().tolist()
+            all_scores.extend(probs)
+            all_labels.extend(y.detach().cpu().tolist())
 
     model.train()
-    accuracy = correct / total * 100 if total > 0 else 0
     avg_loss = total_loss / num_batches if num_batches > 0 else 0
 
-    return accuracy, avg_loss
+    preds = [1 if s > 0.5 else 0 for s in all_scores]
+    correct = sum(1 for p, t in zip(preds, all_labels) if p == int(t))
+    total = len(all_labels)
+    accuracy = correct / total * 100 if total > 0 else 0
+    f1 = f1_score(all_labels, preds)
+    auc = auc_score(all_labels, all_scores)
+
+    return accuracy, avg_loss, f1, auc, all_scores, all_labels
 
 
 # ─── Main ─────────────────────────────────────────────
@@ -185,7 +218,9 @@ train_loader = DataLoader(
     batch_size=BATCH_SIZE,
     shuffle=True,
     collate_fn=collate_fn,
-    num_workers=0
+    num_workers=NUM_WORKERS,
+    pin_memory=(DEVICE == "cuda"),
+    persistent_workers=(NUM_WORKERS > 0),
 )
 
 val_loader = DataLoader(
@@ -193,7 +228,9 @@ val_loader = DataLoader(
     batch_size=BATCH_SIZE,
     shuffle=False,
     collate_fn=collate_fn,
-    num_workers=0
+    num_workers=NUM_WORKERS,
+    pin_memory=(DEVICE == "cuda"),
+    persistent_workers=(NUM_WORKERS > 0),
 )
 
 print("Initializing model...")
@@ -227,7 +264,10 @@ print("Starting training...")
 model.train()
 
 best_val_acc = 0.0
+best_val_loss = float("inf")
+epochs_no_improve = 0
 best_model_path = "model/detector_best.pt"
+best_threshold_value = 0.5
 
 for epoch in range(EPOCHS):
     total_loss = 0.0
@@ -270,19 +310,34 @@ for epoch in range(EPOCHS):
     train_avg_loss = total_loss / num_batches
 
     # Validation
-    val_acc, val_loss = evaluate(model, val_loader)
+    val_acc, val_loss, val_f1, val_auc, val_scores, val_labels = evaluate(model, val_loader)
     scheduler.step(val_loss)
 
     print(f"Epoch {epoch+1}/{EPOCHS} | "
           f"Train Loss: {train_avg_loss:.4f} | "
           f"Val Loss: {val_loss:.4f} | "
-          f"Val Acc: {val_acc:.1f}%")
+          f"Val Acc: {val_acc:.1f}% | "
+          f"Val F1: {val_f1:.3f} | "
+          f"Val AUC: {val_auc:.3f}")
+
+    # Track best by accuracy; early-stop on val loss.
+    if val_loss < best_val_loss - 1e-4:
+        best_val_loss = val_loss
+        epochs_no_improve = 0
+    else:
+        epochs_no_improve += 1
 
     # Save best model
     if val_acc > best_val_acc:
         best_val_acc = val_acc
+        best_threshold_value = best_threshold(val_labels, val_scores)
         torch.save(model.state_dict(), best_model_path)
-        print(f"  💾 New best model saved! Val Acc: {val_acc:.1f}%")
+        print(f"  [save] New best model saved! Val Acc: {val_acc:.1f}% "
+              f"(val threshold suggestion: {best_threshold_value:.3f})")
+
+    if epochs_no_improve >= EARLY_STOP_PATIENCE:
+        print(f"  [stop] Early stopping: val loss stagnant for {EARLY_STOP_PATIENCE} epochs")
+        break
 
 # Save final model too
 os.makedirs("model", exist_ok=True)
@@ -290,8 +345,25 @@ torch.save(model.state_dict(), "model/detector.pt")
 
 # Copy best model as the main one
 import shutil
+import json
 shutil.copy(best_model_path, "model/detector.pt")
 
-print(f"\n✅ Training complete!")
+# Persist inference parity config (window length + suggested threshold) so
+# serving stays in sync with how the model was trained.
+with open("model/detector_config.json", "w") as f:
+    json.dump(
+        {
+            "sample_rate": 16000,
+            "max_len": MAX_LEN,
+            "min_len": MIN_LEN,
+            "suggested_threshold": round(best_threshold_value, 4),
+            "best_val_acc": round(best_val_acc, 2),
+        },
+        f,
+        indent=2,
+    )
+
+print(f"\n[ok] Training complete!")
 print(f"   Best Val Accuracy: {best_val_acc:.1f}%")
-print(f"   Model saved to model/detector.pt")
+print(f"   Suggested threshold (Youden's J on val): {best_threshold_value:.3f}")
+print(f"   Model saved to model/detector.pt (+ detector_config.json)")
