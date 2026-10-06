@@ -1,3 +1,12 @@
+# ---- Console build ----
+FROM node:20-slim AS console
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---- API + console serving ----
 FROM python:3.9-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
@@ -9,8 +18,6 @@ ENV QUANTIZE=1
 ENV MODEL_VERSION=detector.pt
 
 COPY requirements.txt .
-
-# Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 
 # Install typing-extensions first from PyPi to avoid naming conflict on PyTorch index
 RUN pip install --no-cache-dir typing-extensions
@@ -36,8 +43,9 @@ COPY --chown=user model ./model
 COPY download_base.py .
 RUN python download_base.py && rm download_base.py
 
-# Final code copy
+# Final code copy (backend + built console)
 COPY --chown=user app ./app
+COPY --chown=user --from=console /build/dist ./frontend/dist
 
 # Fix permissions and switch user
 RUN chown -R user:user /app

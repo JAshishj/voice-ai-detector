@@ -1,0 +1,12 @@
+# One-command full-stack run: API + console on :7860.
+services:
+  lab:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      # Public-demo mode: no API key (see app/main.py TODO(auth)).
+      # Bump per-language cutoffs without rebuilding via THRESHOLD_*.
+      TORCH_THREADS: "4"
+      QUANTIZE: "1"
+      MODEL_VERSION: detector.pt

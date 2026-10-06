@@ -21,3 +21,7 @@ temp_*.wav
 evaluation_reports/
 model/detector_best.pt
 model/*.onnx
+
+# Frontend sources are built in-image; never ship install artifacts
+frontend/node_modules
+frontend/dist

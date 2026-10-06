@@ -2,16 +2,58 @@ import asyncio
 import json
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.audio import AudioValidationError, decode_audio
-from app.auth import verify_api_key
+
+# TODO(auth): public demo runs without API keys. To re-enable, restore
+# `auth=Depends(verify_api_key)` on the POST routes (see app/auth.py).
 from app.inference import predict_with_meta
 from app.schemas import DetectRequest, DetectResponse
 
 app = FastAPI(title="AI Generated Voice Detection API")
+
+
+def _client_key(request: Request) -> str:
+    """Rate-limit key that respects proxies (HF Spaces fronts with one)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_client_key, default_limits=["30/minute"])
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    # Same envelope as every other error; Retry-After lets the UI count down.
+    return JSONResponse(
+        status_code=429,
+        headers={"Retry-After": "60"},
+        content={
+            "status": "error",
+            "message": "Scan budget exhausted — try again in a minute.",
+        },
+    )
+
+
+# Harmless same-origin setup today; required if the console ever splits
+# hosting (e.g. Vercel frontend + Spaces API).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 def _load_serving_config() -> dict:
@@ -56,21 +98,16 @@ LANGUAGE_THRESHOLDS = {
 MODEL_VERSION = os.getenv("MODEL_VERSION", "detector.pt")
 
 
-@app.get("/")
+@app.get("/health")
 def health_check():
     return {
         "status": "healthy",
         "platform": "huggingface_spaces",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "model": MODEL_VERSION,
         "threshold": DEFAULT_THRESHOLD,
         "best_val_acc": _SERVING_CONFIG.get("best_val_acc"),
     }
-
-
-@app.get("/health")
-def health_alias():
-    return health_check()
 
 
 @app.exception_handler(HTTPException)
@@ -83,7 +120,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Surface the real pydantic message instead of blaming the API key.
+    # Surface the real pydantic message instead of a generic failure.
     try:
         detail = exc.errors()[0]
         message = f"Invalid request: {'.'.join(map(str, detail['loc']))}: {detail['msg']}"
@@ -135,13 +172,16 @@ async def _classify(language: str, audio_b64: str) -> DetectResponse:
     )
 
 
-# Primary endpoint as per guidelines
+# Primary endpoint (no auth in public-demo mode; rate-limited instead)
 @app.post("/api/voice-detection", response_model=DetectResponse)
-async def detect_voice(request: DetectRequest, auth=Depends(verify_api_key)):
-    return await _classify(request.language, request.audioBase64)
+@limiter.limit("5/minute")
+async def detect_voice(request: Request, payload: DetectRequest):
+    return await _classify(payload.language, payload.audioBase64)
 
 
-# Alias for root URL to support testers that don't append the path
-@app.post("/", response_model=DetectResponse)
-async def detect_voice_root_alias(request: DetectRequest, auth=Depends(verify_api_key)):
-    return await _classify(request.language, request.audioBase64)
+# Serve the React console when a production build exists. Mounted last so
+# /api/* and /health keep precedence; html=True serves index.html at / and
+# handles SPA fallback. Absent in backend-only dev — API still works.
+_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.isdir(_DIST):
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="console")
