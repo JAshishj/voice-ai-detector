@@ -12,7 +12,7 @@ Serves two clients:
 
 Env:
   MODEL_REPO_ID  HF model repo holding detector.pt + detector_config.json
-                 (default Ashish-04007/voice-ai-detector)
+                 (default Ashish-04007/voice-ai-detector-model)
   HF_TOKEN       only needed if the model repo is private
   TORCH_THREADS  CPU thread cap (default 4)
 """

@@ -4,7 +4,7 @@ emoji: 🎤
 colorFrom: green
 colorTo: indigo
 sdk: gradio
-sdk_version: 5.44.1
+sdk_version: 6.29.1
 app_file: app.py
 pinned: false
 ---
@@ -17,7 +17,7 @@ Free-tier Gradio backend for the Voice AI Detector console.
   AI/HUMAN verdict (held-out accuracy 96.3%, EER 0.020, threshold 0.85).
 - REST API enabled: the React console on Vercel calls `/predict` via
   `@gradio/client`.
-- Weights load from the `Ashish-04007/voice-ai-detector` model repo
+- Weights load from the `Ashish-04007/voice-ai-detector-model` model repo
   (`MODEL_REPO_ID` env overrides); `HF_TOKEN` only needed for private repos.
 
 Full-stack source: `Ashish-04007/voice-ai-detector` (GitHub).

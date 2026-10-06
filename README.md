@@ -38,7 +38,7 @@ cd frontend && npm install && npm run dev  # console (proxies /api → :7860)
 - **API → Gradio Space (free CPU):** push `spaces/gradio/` as its own Space
   repo. First upload `model/detector.pt` + `model/detector_config.json` to a
   model repo named by `MODEL_REPO_ID` (default
-  `Ashish-04007/voice-ai-detector`); the Space downloads them at boot.
+  `Ashish-04007/voice-ai-detector-model`); the Space downloads them at boot.
   `spaces/gradio/requirements.txt` pins the set (note: transformers stays
   v4 there — gradio 5.x needs `huggingface_hub<1.0`, transformers 5.x needs
   `>=1.3`).
