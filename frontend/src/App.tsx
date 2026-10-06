@@ -169,6 +169,15 @@ export default function App() {
                   {apiError.message}
                 </p>
               )}
+              {mutation.error && !apiError && (
+                <p role="alert" className="text-sm text-rose">
+                  Scan failed unexpectedly:{" "}
+                  {mutation.error instanceof Error
+                    ? mutation.error.message
+                    : "unknown error"}{" "}
+                  Open the browser console (F12) for details.
+                </p>
+              )}
               {rateLimited && (
                 <div
                   role="alert"

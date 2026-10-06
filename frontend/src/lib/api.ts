@@ -69,13 +69,27 @@ async function detectViaGradio(
     throw new ApiError(0, "VITE_GRADIO_URL is not configured.");
   }
   if (signal?.aborted) throw new ApiError(0, "Scan cancelled.");
-  gradioClient ??= await Client.connect(GRADIO_URL);
-  const client: Client = gradioClient;
-  const job = await client.predict("/predict", [
-    base64ToWavBlob(input.audioBase64),
-    input.language,
-  ]);
-  const [label, confidence, explanation] = job.data as [string, number, string];
+  let job: Awaited<ReturnType<Client["predict"]>>;
+  try {
+    gradioClient ??= await Client.connect(GRADIO_URL);
+    const client: Client = gradioClient;
+    job = await client.predict("/predict", [
+      base64ToWavBlob(input.audioBase64),
+      input.language,
+    ]);
+  } catch (e) {
+    console.error("[signal-lab] gradio call failed:", e);
+    throw new ApiError(
+      0,
+      "Cannot reach the analysis Space — it may be waking up (first scans can take a minute) or VITE_GRADIO_URL is wrong.",
+    );
+  }
+  const data: unknown = (job as { data?: unknown })?.data;
+  if (!Array.isArray(data) || data.length < 3) {
+    console.error("[signal-lab] unexpected gradio payload:", job);
+    throw new ApiError(0, "Unexpected response from the analysis Space.");
+  }
+  const [label, confidence, explanation] = data as [unknown, unknown, unknown];
   if (label === "REJECTED") throw new ApiError(400, String(explanation));
   return {
     status: "success",
