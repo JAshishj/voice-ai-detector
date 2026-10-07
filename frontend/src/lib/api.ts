@@ -45,6 +45,14 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "";
 const BACKEND = import.meta.env.VITE_BACKEND ?? "fastapi";
 const GRADIO_URL = import.meta.env.VITE_GRADIO_URL ?? "";
 const GRADIO_THRESHOLD = Number(import.meta.env.VITE_THRESHOLD ?? "0.85");
+/**
+ * Optional: your own calls then bill to this account's ZeroGPU quota
+ * instead of the small shared anonymous pool (which is currently empty).
+ * WARNING: Vite bakes this into public JS — anyone can read it. Use a
+ * dedicated throwaway HF account, or leave it unset and wait for the
+ * monthly free-grant reset.
+ */
+const HF_TOKEN: string = import.meta.env.VITE_HF_TOKEN ?? "";
 
 export interface AnalyzeInput {
   audioBase64: string;
@@ -74,7 +82,10 @@ async function detectViaGradio(
   if (signal?.aborted) throw new ApiError(0, "Scan cancelled.");
   let client: Client;
   try {
-    gradioClient ??= await Client.connect(GRADIO_URL);
+    // @gradio/client types the token as `hf_${string}`; the env value is a
+    // plain string, so narrow it (empty stays undefined = anonymous quota).
+    const token = (HF_TOKEN || undefined) as `hf_${string}` | undefined;
+    gradioClient ??= await Client.connect(GRADIO_URL, { hf_token: token });
     client = gradioClient;
   } catch (e) {
     console.error("[signal-lab] gradio connect failed:", GRADIO_URL, e);
