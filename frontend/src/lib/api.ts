@@ -72,19 +72,29 @@ async function detectViaGradio(
     throw new ApiError(0, "VITE_GRADIO_URL is not configured.");
   }
   if (signal?.aborted) throw new ApiError(0, "Scan cancelled.");
-  let job: Awaited<ReturnType<Client["predict"]>>;
+  let client: Client;
   try {
     gradioClient ??= await Client.connect(GRADIO_URL);
-    const client: Client = gradioClient;
-  job = await client.predict("/predict", [
-    base64ToWavFile(input.audioBase64),
-    input.language,
-  ]);
+    client = gradioClient;
   } catch (e) {
-    console.error("[signal-lab] gradio call failed:", e);
+    console.error("[signal-lab] gradio connect failed:", GRADIO_URL, e);
     throw new ApiError(
       0,
-      "Cannot reach the analysis Space — it may be waking up (first scans can take a minute) or VITE_GRADIO_URL is wrong.",
+      `Cannot reach the Space at ${GRADIO_URL} — check VITE_GRADIO_URL (exact https URL, no trailing slash) and that the Space is Running, not Paused or Building.`,
+    );
+  }
+  let job: Awaited<ReturnType<Client["predict"]>>;
+  try {
+    job = await client.predict("/predict", [
+      base64ToWavFile(input.audioBase64),
+      input.language,
+    ]);
+  } catch (e) {
+    console.error("[signal-lab] gradio scan failed:", e);
+    const detail = e instanceof Error ? `: ${e.message}` : "";
+    throw new ApiError(
+      0,
+      `Space reached but the scan failed${detail} — the ZeroGPU worker may be cold (first scans take up to a minute). Wait, then retry.`,
     );
   }
   const data: unknown = (job as { data?: unknown })?.data;
