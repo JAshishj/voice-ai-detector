@@ -31,7 +31,7 @@ export function LanguageSelect({ value, onChange, disabled }: Props) {
               role="radio"
               aria-checked={active}
               onClick={() => onChange(lang)}
-              className={`min-h-[44px] rounded-full border px-4 py-2 text-sm transition-colors ${
+              className={`min-h-11 rounded-full border px-4 py-2 text-sm transition-colors ${
                 active
                   ? "border-teal bg-teal font-semibold text-void"
                   : "border-hairline bg-panel text-ink hover:border-teal/60"

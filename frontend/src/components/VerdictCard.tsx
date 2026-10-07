@@ -41,7 +41,7 @@ export function VerdictCard({ result, windows, onReset }: Props) {
       <button
         type="button"
         onClick={onReset}
-        className="mt-6 min-h-[44px] rounded-xl border border-hairline bg-transparent px-5 py-2.5 font-medium text-ink transition-colors hover:border-teal/60"
+        className="mt-6 min-h-11 rounded-xl border border-hairline bg-transparent px-5 py-2.5 font-medium text-ink transition-colors hover:border-teal/60"
       >
         Analyze another clip
       </button>

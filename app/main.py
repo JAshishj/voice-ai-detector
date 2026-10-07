@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -179,9 +179,32 @@ async def detect_voice(request: Request, payload: DetectRequest):
     return await _classify(payload.language, payload.audioBase64)
 
 
-# Serve the React console when a production build exists. Mounted last so
-# /api/* and /health keep precedence; html=True serves index.html at / and
-# handles SPA fallback. Absent in backend-only dev — API still works.
+# Serve the React console when a production build exists. Vite emits
+# index.html + favicon.svg at root and hashed files under assets/, so mount
+# assets directly and fall back to index.html for every other non-API path
+# (BrowserRouter needs /model to resolve client-side). API routes above keep
+# precedence because they are registered first.
 _DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.isdir(_DIST):
-    app.mount("/", StaticFiles(directory=_DIST, html=True), name="console")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(_DIST, "assets")),
+        name="console-assets",
+    )
+
+    def _spa_file(name: str) -> FileResponse:
+        return FileResponse(os.path.join(_DIST, name))
+
+    @app.get("/", include_in_schema=False)
+    async def _console_root():
+        return _spa_file("index.html")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def _console_icon():
+        return _spa_file("favicon.svg")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _console_fallback(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return _spa_file("index.html")

@@ -29,7 +29,7 @@ export function RecorderPanel({ onReady, disabled }: Props) {
           onClick={handleToggle}
           disabled={busy && state !== "recording"}
           aria-label={state === "recording" ? "Stop recording" : "Record from mic"}
-          className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full transition-colors ${
+          className={`flex min-h-11 min-w-11 items-center justify-center rounded-full transition-colors ${
             state === "recording"
               ? "bg-rose text-void"
               : "bg-teal font-semibold text-void"

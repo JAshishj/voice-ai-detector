@@ -14,7 +14,7 @@ export function MetricsTable() {
       <h2 className="font-display text-xl font-bold tracking-tight text-ink">
         Model intel
       </h2>
-      <dl className="mt-4 divide-y divide-[rgba(255,255,255,0.08)]">
+      <dl className="mt-4 divide-y divide-hairline">
         {ROWS.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between py-2.5">
             <dt className="text-sm text-dim">{k}</dt>

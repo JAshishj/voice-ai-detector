@@ -15,7 +15,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render() {
     if (this.state.failed) {
       return (
-        <div className="mx-auto max-w-[1280px] p-8">
+        <div className="mx-auto max-w-7xl p-8">
           <div className="rounded-[20px] border border-hairline bg-panel p-8">
             <h1 className="font-display text-2xl font-bold text-ink">
               Console fault
@@ -26,7 +26,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-4 min-h-[44px] rounded-xl bg-teal px-5 py-2.5 font-semibold text-void"
+              className="mt-4 min-h-11 rounded-xl bg-teal px-5 py-2.5 font-semibold text-void"
             >
               Reload console
             </button>
