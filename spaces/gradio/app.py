@@ -233,4 +233,9 @@ def build_demo():
 
 
 if __name__ == "__main__":
-    build_demo().queue(max_size=8).launch(server_port=int(os.getenv("PORT", "7860")))
+    # ssr_mode=False: Gradio's experimental SSR node server 405-loops behind
+    # the Spaces proxy ("POST method not allowed. No actions exist"). The
+    # API and UI work without it; this just removes the crash spam.
+    build_demo().queue(max_size=8).launch(
+        server_port=int(os.getenv("PORT", "7860")), ssr_mode=False
+    )
