@@ -63,25 +63,40 @@ gc.collect()
 print("Service ready: Model loaded.")
 
 
-def _window_prob(window: np.ndarray) -> float:
-    encoding = processor(
-        window,
+def _batch_probs(windows: list) -> list[float]:
+    """Score all windows in ONE processor + model forward (see spaces app)."""
+    import numpy as np
+
+    enc = processor(
+        [np.asarray(w, dtype=np.float32) for w in windows],
         sampling_rate=SAMPLE_RATE,
         return_tensors="pt",
         padding=True,
         return_attention_mask=True,  # required: transformers>=5 omits it by default
     )
-    input_values = encoding.input_values.to(DEVICE)
+    input_values = enc.input_values.to(DEVICE)
     try:
-        attention_mask = encoding["attention_mask"].to(DEVICE)
-    except KeyError:  # defensive: single window, mask = its true length
+        attention_mask = enc["attention_mask"].to(DEVICE)
+    except KeyError:  # defensive: mask = each window's true length
         attention_mask = torch.zeros_like(input_values)
-        attention_mask[:, : min(len(window), attention_mask.shape[-1])] = 1
+        for i, w in enumerate(windows):
+            attention_mask[i, : min(len(w), attention_mask.shape[-1])] = 1
         attention_mask = attention_mask.to(DEVICE)
 
     with torch.inference_mode():
-        logits = model(input_values, attention_mask)
-        return float(torch.sigmoid(logits).item())
+        logits = model(input_values, attention_mask).squeeze(-1)
+        return torch.sigmoid(logits).flatten().tolist()
+
+
+def _select_windows(audio: np.ndarray) -> list:
+    windows = [
+        audio[i:i + WINDOW_SAMPLES]
+        for i in range(0, len(audio), WINDOW_SAMPLES)
+    ][:MAX_WINDOWS]
+    if len(windows) > 3:
+        # Stride-sample start/middle/end (same policy as the Space backend).
+        windows = [windows[0], windows[len(windows) // 2], windows[-1]]
+    return windows
 
 
 def predict(audio: np.ndarray) -> float:
@@ -94,22 +109,12 @@ def predict(audio: np.ndarray) -> float:
     if peak > 0:
         audio = audio / peak
 
-    # Split into 6 s windows (last partial window is processor-padded, and the
-    # real attention mask tells the backbone to ignore that padding).
-    windows = [
-        audio[i:i + WINDOW_SAMPLES]
-        for i in range(0, len(audio), WINDOW_SAMPLES)
-    ][:MAX_WINDOWS]
-
-    probs = [_window_prob(w) for w in windows]
+    windows = _select_windows(audio)
+    probs = _batch_probs(windows)
     return float(sum(probs) / len(probs))
 
 
 def predict_with_meta(audio: np.ndarray) -> dict:
     """predict() plus diagnostics for logging/explanations."""
     prob = predict(audio)
-    n_windows = min(
-        MAX_WINDOWS,
-        (int(np.asarray(audio).size) + WINDOW_SAMPLES - 1) // WINDOW_SAMPLES,
-    )
-    return {"fake_prob": prob, "num_windows": max(n_windows, 1)}
+    return {"fake_prob": prob, "num_windows": len(_select_windows(np.asarray(audio).ravel()))}
