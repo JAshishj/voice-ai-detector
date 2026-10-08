@@ -113,8 +113,19 @@ async function detectViaGradio(
     console.error("[signal-lab] unexpected gradio payload:", job);
     throw new ApiError(0, "Unexpected response from the analysis Space.");
   }
-  const [label, confidence, explanation] = data as [unknown, unknown, unknown];
+  const [rawLabel, confidence, explanation] = data as [unknown, unknown, unknown];
+  // gr.Label arrives as { label, confidences }, NOT a bare string. Comparing
+  // that object to "HUMAN" is always false, so EVERY scan rendered as
+  // AI_GENERATED. Unwrap first, and refuse unknown labels instead of guessing.
+  const label =
+    typeof rawLabel === "object" && rawLabel !== null && "label" in rawLabel
+      ? String((rawLabel as { label: unknown }).label)
+      : String(rawLabel);
   if (label === "REJECTED") throw new ApiError(400, String(explanation));
+  if (label !== "AI_GENERATED" && label !== "HUMAN") {
+    console.error("[signal-lab] unknown verdict label:", rawLabel);
+    throw new ApiError(0, "Unexpected response from the analysis Space.");
+  }
   return {
     status: "success",
     language: input.language,
